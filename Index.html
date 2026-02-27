@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GamerTech">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0f">
+<title>GamerTech Manager</title>
+<link rel="manifest" id="pwa-manifest">
+<link rel="apple-touch-icon" id="pwa-icon">
+<script>
+// ── Inline PWA manifest (no server needed) ──────────────────
+(function(){
+  const icon = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230a0a0f'/><rect x='10' y='10' width='492' height='492' rx='74' fill='none' stroke='%2300f5ff' stroke-width='8'/><text x='256' y='310' font-family='monospace' font-weight='900' font-size='200' fill='%2300f5ff' text-anchor='middle'>GT</text><text x='256' y='420' font-family='monospace' font-size='60' fill='%238b5cf6' text-anchor='middle'>MANAGER</text></svg>`);
+
+  // Apple touch icon
+  const li = document.getElementById('pwa-icon');
+  li.href = icon;
+
+  // Manifest blob
+  const manifest = {
+    name: "GamerTech Manager",
+    short_name: "GamerTech",
+    description: "Sistema de mantenimiento para sala gamer",
+    start_url: "./",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#0a0a0f",
+    theme_color: "#0a0a0f",
+    icons: [
+      { src: icon, sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
+      { src: icon, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+})();
+
+// ── Service Worker inline (cache-first, works offline) ───────
+if('serviceWorker' in navigator) {
+  const swCode = `
+const CACHE = 'gamertech-v1';
+self.addEventListener('install', e => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./'])));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(clients.claim());
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./'))));
+});
+  `;
+  const swBlob = new Blob([swCode], {type:'text/javascript'});
+  const swUrl  = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl, {scope: './'})
+    .catch(()=>{}); // silently ignore scope restrictions on file://
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f1a;
+    --bg3: #151525;
+    --card: #111120;
+    --border: #1e1e3a;
+    --cyan: #00f5ff;
+    --purple: #8b5cf6;
+    --green: #00ff88;
+    --yellow: #ffd700;
+    --red: #ff3366;
+    --orange: #ff6b2b;
+    --text: #e0e0f0;
+    --muted: #666688;
+    --font-head: 'Orbitron', monospace;
+    --font-body: 'Rajdhani', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; }
+
+  /* SCANLINES OVERLAY */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  /* LAYOUT */
+  #app { display:flex; flex-direction:column; height:100vh; }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, #0a0a0f 0%, #0f0f2a 100%);
+    border-bottom: 1px solid var(--cyan);
+    padding: 10px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 0 20px rgba(0,245,255,0.15);
+    flex-shrink: 0;
+  }
+  .logo { font-family: var(--font-head); font-size: 14px; font-weight: 900; letter-spacing: 2px; }
+  .logo span { color: var(--cyan); }
+  .logo small { display:block; font-size: 8px; color: var(--muted); letter-spacing: 3px; font-weight:400; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* NAV */
+  nav {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-shrink: 0;
+    order: 99;
+  }
+  .nav-btn {
+    flex: 1; padding: 10px 4px 8px;
+    background: none; border: none; color: var(--muted);
+    font-family: var(--font-body); font-size: 9px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .nav-btn svg { width:20px; height:20px; }
+  .nav-btn.active { color: var(--cyan); }
+  .nav-btn.active svg { filter: drop-shadow(0 0 4px var(--cyan)); }
+  .nav-badge { background: var(--red); color: white; font-size: 8px; padding: 1px 4px; border-radius: 10px; position:absolute; top:4px; right:calc(50% - 18px); }
+
+  /* MAIN CONTENT */
+  main { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .page { display: none; padding: 12px; animation: fadeIn 0.2s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+  }
+  .card-title {
+    font-family: var(--font-head); font-size: 10px; letter-spacing: 2px;
+    color: var(--cyan); margin-bottom: 12px; text-transform: uppercase;
+  }
+
+  /* DASHBOARD */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .stat-box {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 10px; text-align: center;
+  }
+  .stat-num { font-family: var(--font-head); font-size: 28px; font-weight: 900; line-height: 1; }
+  .stat-num.cyan { color: var(--cyan); text-shadow: 0 0 15px rgba(0,245,255,0.5); }
+  .stat-num.green { color: var(--green); text-shadow: 0 0 15px rgba(0,255,136,0.5); }
+  .stat-num.red { color: var(--red); text-shadow: 0 0 15px rgba(255,51,102,0.5); }
+  .stat-num.yellow { color: var(--yellow); text-shadow: 0 0 15px rgba(255,215,0,0.5); }
+  .stat-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+
+  /* EQUIPMENT LIST */
+  .equip-item {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; margin-bottom: 8px; cursor: pointer;
+    transition: border-color 0.2s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .equip-item:active { background: #1a1a30; }
+  .equip-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .equip-dot.good { background:var(--green); box-shadow: 0 0 6px var(--green); }
+  .equip-dot.warn { background:var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+  .equip-dot.bad { background:var(--red); box-shadow: 0 0 6px var(--red); }
+  .equip-info { flex:1; min-width:0; }
+  .equip-id { font-family:var(--font-head); font-size:11px; color:var(--cyan); }
+  .equip-name { font-size:13px; font-weight:600; }
+  .equip-type { font-size:11px; color:var(--muted); }
+  .equip-arrow { color: var(--muted); font-size: 18px; }
+  .filter-row { display:flex; gap:6px; margin-bottom:10px; overflow-x:auto; padding-bottom:2px; }
+  .filter-btn {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+    padding: 5px 12px; border-radius: 20px; font-family: var(--font-body);
+    font-size: 12px; cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all 0.2s;
+  }
+  .filter-btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0,245,255,0.08); }
+
+  /* MODAL */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100;
+    display:none; align-items:flex-end; justify-content:center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--cyan);
+    border-radius: 16px 16px 0 0; width:100%; max-height:90vh;
+    overflow-y:auto; padding: 20px 16px 40px;
+    box-shadow: 0 -10px 40px rgba(0,245,255,0.15);
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px; }
+  .modal-title { font-family:var(--font-head); font-size:13px; color:var(--cyan); letter-spacing:2px; margin-bottom:16px; }
+
+  /* PERIFERICOS GRID */
+  .periph-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+  .periph-item { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px; }
+  .periph-label { font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; }
+  .periph-select {
+    width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:4px; font-family:var(--font-body); font-size:13px;
+    appearance:none; outline:none;
+  }
+  .periph-select:focus { border-color:var(--cyan); }
+
+  /* FORMS */
+  .form-group { margin-bottom:14px; }
+  .form-label { font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; display:block; }
+  .form-input, .form-textarea, .form-select {
+    width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px; border-radius:6px; font-family:var(--font-body); font-size:14px; outline:none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color:var(--cyan); }
+  .form-textarea { resize:vertical; min-height:80px; }
+  .form-select { appearance:none; }
+
+  /* BUTTONS */
+  .btn {
+    width:100%; padding:12px; border:none; border-radius:6px;
+    font-family:var(--font-head); font-size:12px; letter-spacing:2px;
+    cursor:pointer; transition:all 0.2s; text-transform:uppercase;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: #0a0a0f; font-weight:900;
+    box-shadow: 0 0 20px rgba(0,245,255,0.3);
+  }
+  .btn-primary:active { transform:scale(0.98); }
+  .btn-danger { background:rgba(255,51,102,0.2); color:var(--red); border:1px solid var(--red); margin-top:8px; }
+  .btn-secondary { background:var(--bg3); color:var(--text); border:1px solid var(--border); margin-top:8px; }
+
+  /* HISTORIAL */
+  .hist-item {
+    background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+    padding:12px; margin-bottom:8px;
+  }
+  .hist-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+  .hist-id { font-family:var(--font-head); font-size:11px; color:var(--cyan); }
+  .hist-date { font-size:11px; color:var(--muted); }
+  .hist-tecnico { font-size:12px; color:var(--purple); margin-bottom:4px; }
+  .hist-obs { font-size:13px; color:var(--text); }
+  .hist-type { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+  .hist-type.preventivo { background:rgba(0,255,136,0.15); color:var(--green); border:1px solid var(--green); }
+  .hist-type.correctivo { background:rgba(255,51,102,0.15); color:var(--red); border:1px solid var(--red); }
+  .hist-type.reporte { background:rgba(255,215,0,0.15); color:var(--yellow); border:1px solid var(--yellow); }
+
+  /* REPORTES */
+  .report-item {
+    background:var(--bg3); border-left:3px solid var(--orange);
+    border-radius:0 6px 6px 0; padding:12px; margin-bottom:8px;
+    border-top:1px solid var(--border); border-right:1px solid var(--border); border-bottom:1px solid var(--border);
+  }
+  .report-item.resuelto { border-left-color: var(--green); opacity:0.7; }
+  .report-header { display:flex; justify-content:space-between; margin-bottom:4px; }
+  .report-equip { font-family:var(--font-head); font-size:11px; color:var(--orange); }
+  .report-equip.resuelto { color:var(--green); }
+  .report-datetime { font-size:10px; color:var(--muted); }
+  .report-desc { font-size:13px; margin-bottom:6px; }
+  .report-cliente { font-size:11px; color:var(--purple); }
+  .resolve-btn {
+    background:rgba(0,255,136,0.1); border:1px solid var(--green); color:var(--green);
+    padding:4px 10px; border-radius:4px; font-size:11px; font-family:var(--font-body);
+    cursor:pointer; letter-spacing:1px; text-transform:uppercase;
+  }
+
+  /* SOLICITUDES */
+  .soli-item {
+    background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+    padding:12px; margin-bottom:8px;
+  }
+  .soli-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .soli-badge { padding:2px 10px; border-radius:10px; font-size:10px; letter-spacing:1px; text-transform:uppercase; }
+  .soli-badge.pendiente { background:rgba(255,107,43,0.2); color:var(--orange); border:1px solid var(--orange); }
+  .soli-badge.proceso { background:rgba(139,92,246,0.2); color:var(--purple); border:1px solid var(--purple); }
+  .soli-badge.completada { background:rgba(0,255,136,0.15); color:var(--green); border:1px solid var(--green); }
+  .soli-tipo { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+  .soli-desc { font-size:13px; margin-bottom:4px; }
+  .soli-meta { font-size:11px; color:var(--muted); }
+
+  /* STATUS PILLS */
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; }
+  .pill-green { background:rgba(0,255,136,0.15); color:var(--green); }
+  .pill-yellow { background:rgba(255,215,0,0.15); color:var(--yellow); }
+  .pill-red { background:rgba(255,51,102,0.15); color:var(--red); }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    background:rgba(255,51,102,0.1); border:1px solid rgba(255,51,102,0.4);
+    border-radius:6px; padding:10px 12px; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px; font-size:13px;
+  }
+  .alert-banner span { color:var(--red); font-size:18px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  /* SECTION DIVIDER */
+  .section-head {
+    font-family:var(--font-head); font-size:9px; letter-spacing:3px;
+    color:var(--muted); text-transform:uppercase; margin:16px 0 8px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-head::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* EMPTY STATE */
+  .empty { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
+  .empty-icon { font-size:40px; margin-bottom:8px; }
+
+  /* MAINTENANCE DETAIL */
+  .mant-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .mant-row:last-child { border-bottom:none; }
+  .mant-key { color:var(--muted); }
+  .mant-val { font-weight:600; }
+
+  /* TOAST */
+  .toast {
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--bg2); border:1px solid var(--cyan); color:var(--cyan);
+    padding:10px 20px; border-radius:20px; font-size:13px; z-index:200;
+    opacity:0; transition:all 0.3s; white-space:nowrap;
+    box-shadow: 0 0 20px rgba(0,245,255,0.2);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* CLOSE BTN */
+  .close-btn {
+    position:absolute; top:16px; right:16px;
+    background:var(--bg3); border:1px solid var(--border); color:var(--muted);
+    width:30px; height:30px; border-radius:50%; font-size:18px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+
+  /* PROGRESS BAR */
+  .prog-bar { background:var(--bg3); border-radius:4px; height:6px; overflow:hidden; margin-top:4px; }
+  .prog-fill { height:100%; border-radius:4px; transition:width 0.5s ease; }
+  .prog-fill.green { background: linear-gradient(90deg, var(--green), #00cc66); }
+  .prog-fill.yellow { background: linear-gradient(90deg, var(--yellow), var(--orange)); }
+  .prog-fill.red { background: linear-gradient(90deg, var(--red), #cc0033); }
+
+  /* NAV relative for badge */
+  .nav-btn { position:relative; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">
+      <span>GAMER</span>TECH
+      <small>SISTEMA DE MANTENIMIENTO</small>
+    </div>
+    <div class="status-dot" id="statusDot" title="Sistema activo"></div>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-num cyan" id="stat-total">23</div>
+          <div class="stat-label">Total Equipos</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num green" id="stat-good">0</div>
+          <div class="stat-label">En buen estado</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num yellow" id="stat-warn">0</div>
+          <div class="stat-label">Con atención</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num red" id="stat-bad">0</div>
+          <div class="stat-label">Con fallas</div>
+        </div>
+      </div>
+
+      <div id="alert-container"></div>
+
+      <div class="card">
+        <div class="card-title">⚡ Estado por Periférico</div>
+        <div id="periph-summary"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Últimos Registros</div>
+        <div id="recent-hist"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔔 Solicitudes Pendientes</div>
+        <div id="pending-soli"></div>
+      </div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div class="page" id="page-inventario">
+      <div class="filter-row">
+        <button class="filter-btn active" data-filter="todos">Todos</button>
+        <button class="filter-btn" data-filter="CLIENTE">Clientes</button>
+        <button class="filter-btn" data-filter="SERVIDOR">Servidor</button>
+        <button class="filter-btn" data-filter="CONTROL">Control</button>
+        <button class="filter-btn" data-filter="bad">⚠️ Con fallas</button>
+      </div>
+      <div id="equip-list"></div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="page" id="page-historial">
+      <div class="card" style="padding:10px 14px; margin-bottom:10px;">
+        <input class="form-input" id="hist-search" placeholder="🔍  Buscar por equipo o técnico..." style="background:transparent;border:none;padding:4px 0;">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="filter-btn active" style="flex:1" data-hfilter="todos">Todos</button>
+        <button class="filter-btn" style="flex:1" data-hfilter="Preventivo">Preventivo</button>
+        <button class="filter-btn" style="flex:1" data-hfilter="Correctivo">Correctivo</button>
+      </div>
+      <div id="hist-list"></div>
+    </div>
+
+    <!-- REPORTES -->
+    <div class="page" id="page-reportes">
+      <button class="btn btn-primary" style="margin-bottom:12px" id="btn-new-report">+ NUEVO REPORTE</button>
+      <div class="filter-row">
+        <button class="filter-btn active" data-rfilter="todos">Todos</button>
+        <button class="filter-btn" data-rfilter="pendiente">Pendientes</button>
+        <button class="filter-btn" data-rfilter="resuelto">Resueltos</button>
+      </div>
+      <div id="report-list"></div>
+    </div>
+
+    <!-- SOLICITUDES -->
+    <div class="page" id="page-solicitudes">
+      <button class="btn btn-primary" style="margin-bottom:12px" id="btn-new-soli">+ NUEVA SOLICITUD</button>
+      <div class="filter-row">
+        <button class="filter-btn active" data-sfilter="todos">Todos</button>
+        <button class="filter-btn" data-sfilter="pendiente">Pendientes</button>
+        <button class="filter-btn" data-sfilter="proceso">En Proceso</button>
+        <button class="filter-btn" data-sfilter="completada">Completadas</button>
+      </div>
+      <div id="soli-list"></div>
+    </div>
+  </main>
+
+  <nav>
+    <button class="nav-btn active" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-btn" data-page="inventario">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Equipos
+    </button>
+    <button class="nav-btn" data-page="historial">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Historial
+    </button>
+    <button class="nav-btn" data-page="reportes" id="nav-reportes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      Reportes
+    </button>
+    <button class="nav-btn" data-page="solicitudes" id="nav-solicitudes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Solicitudes
+    </button>
+  </nav>
+</div>
+
+<!-- MODAL EQUIPO DETALLE -->
+<div class="modal-overlay" id="modal-equip">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="close-btn" id="close-equip">×</div>
+    <div class="modal-title" id="modal-equip-title"></div>
+    <div id="modal-equip-body"></div>
+    <button class="btn btn-primary" id="btn-save-equip">GUARDAR CAMBIOS</button>
+    <button class="btn btn-secondary" id="btn-reg-mant">📋 REGISTRAR MANTENIMIENTO</button>
+  </div>
+</div>
+
+<!-- MODAL MANTENIMIENTO -->
+<div class="modal-overlay" id="modal-mant">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="close-btn" id="close-mant">×</div>
+    <div class="modal-title">REGISTRAR MANTENIMIENTO</div>
+    <div class="form-group">
+      <label class="form-label">Equipo</label>
+      <input class="form-input" id="mant-equip" readonly>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo</label>
+      <select class="form-select" id="mant-tipo">
+        <option>Preventivo</option>
+        <option>Correctivo</option>
+        <option>Limpieza</option>
+        <option>Actualización Software</option>
+        <option>Cambio de componente</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Técnico</label>
+      <input class="form-input" id="mant-tecnico" placeholder="Nombre del técnico">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Duración (minutos)</label>
+      <input class="form-input" type="number" id="mant-duracion" placeholder="30">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Insumos utilizados</label>
+      <input class="form-input" id="mant-insumos" placeholder="Ej: Aire comprimido, pasta térmica">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observaciones</label>
+      <textarea class="form-textarea" id="mant-obs" placeholder="Detalle del mantenimiento..."></textarea>
+    </div>
+    <button class="btn btn-primary" id="btn-save-mant">GUARDAR MANTENIMIENTO</button>
+  </div>
+</div>
+
+<!-- MODAL NUEVO REPORTE -->
+<div class="modal-overlay" id="modal-report">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="close-btn" id="close-report">×</div>
+    <div class="modal-title">NUEVO REPORTE</div>
+    <div class="form-group">
+      <label class="form-label">Equipo afectado</label>
+      <select class="form-select" id="rep-equip"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre del cliente (opcional)</label>
+      <input class="form-input" id="rep-cliente" placeholder="Ej: Juan, PC-05...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo de problema</label>
+      <select class="form-select" id="rep-tipo">
+        <option>Periférico dañado</option>
+        <option>Problema de software</option>
+        <option>Falla de hardware</option>
+        <option>Problema de red/internet</option>
+        <option>Audio/video</option>
+        <option>Temperatura alta</option>
+        <option>Sistema lento</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción del problema</label>
+      <textarea class="form-textarea" id="rep-desc" placeholder="Describe el problema reportado por el cliente..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prioridad</label>
+      <select class="form-select" id="rep-prioridad">
+        <option value="alta">🔴 Alta - Equipo fuera de servicio</option>
+        <option value="media" selected>🟡 Media - Funciona con problemas</option>
+        <option value="baja">🟢 Baja - Problema menor</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btn-save-report">REGISTRAR REPORTE</button>
+  </div>
+</div>
+
+<!-- MODAL NUEVA SOLICITUD -->
+<div class="modal-overlay" id="modal-soli">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="close-btn" id="close-soli">×</div>
+    <div class="modal-title">NUEVA SOLICITUD</div>
+    <div class="form-group">
+      <label class="form-label">Tipo de solicitud</label>
+      <select class="form-select" id="soli-tipo">
+        <option>Compra de insumos</option>
+        <option>Reemplazo de periférico</option>
+        <option>Mantenimiento programado</option>
+        <option>Actualización de hardware</option>
+        <option>Soporte técnico externo</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Equipo relacionado (opcional)</label>
+      <select class="form-select" id="soli-equip">
+        <option value="">-- General / Sin equipo específico --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <textarea class="form-textarea" id="soli-desc" placeholder="Detalla lo que se necesita..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prioridad</label>
+      <select class="form-select" id="soli-prioridad">
+        <option value="alta">🔴 Urgente</option>
+        <option value="media" selected>🟡 Normal</option>
+        <option value="baja">🟢 Puede esperar</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Solicitante</label>
+      <input class="form-input" id="soli-quien" placeholder="Tu nombre">
+    </div>
+    <button class="btn btn-primary" id="btn-save-soli">CREAR SOLICITUD</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DATA LAYER - localStorage
+// ============================================================
+const EQUIPOS_DEFAULT = [
+  {id:'SRV-01',tipo:'SERVIDOR',nombre:'SRV-DISKLESS',ubicacion:'Rack/Centro',mouse:'✅ Bueno',teclado:'✅ Bueno',audifonos:'✅ Bueno',monitor:'✅ Bueno',coolerCPU:'✅ Bueno',coolerCase:'✅ Bueno',ultimoMant:'',obs:''},
+  {id:'CTR-01',tipo:'CONTROL',nombre:'PC-CONTROL',ubicacion:'Escritorio Principal',mouse:'✅ Bueno',teclado:'✅ Bueno',audifonos:'✅ Bueno',monitor:'✅ Bueno',coolerCPU:'✅ Bueno',coolerCase:'✅ Bueno',ultimoMant:'',obs:''},
+  ...Array.from({length:21},(_,i)=>{
+    const n=String(i+1).padStart(2,'0');
+    return {id:`CLI-${n}`,tipo:'CLIENTE',nombre:`PC-${n}`,ubicacion:`Puesto ${i+1}`,
+      mouse: i===0?'❌ Malo':'✅ Bueno',
+      teclado:'✅ Bueno',audifonos:'✅ Bueno',monitor:'✅ Bueno',coolerCPU:'✅ Bueno',coolerCase:'✅ Bueno',ultimoMant:'',obs:''};
+  })
+];
+
+function getData(key, def) {
+  try { const d=localStorage.getItem(key); return d?JSON.parse(d):def; } catch(e){ return def; }
+}
+function setData(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){}
+}
+
+let equipos = getData('gt_equipos', EQUIPOS_DEFAULT);
+let historial = getData('gt_historial', []);
+let reportes = getData('gt_reportes', []);
+let solicitudes = getData('gt_solicitudes', []);
+
+function save() {
+  setData('gt_equipos', equipos);
+  setData('gt_historial', historial);
+  setData('gt_reportes', reportes);
+  setData('gt_solicitudes', solicitudes);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function getEstado(eq) {
+  const vals = [eq.mouse,eq.teclado,eq.audifonos,eq.monitor,eq.coolerCPU,eq.coolerCase];
+  if(vals.some(v=>v==='❌ Malo')) return 'bad';
+  if(vals.some(v=>v==='⚠️ Regular')) return 'warn';
+  return 'good';
+}
+function estadoLabel(eq) {
+  const e=getEstado(eq);
+  if(e==='bad') return '❌ Malo';
+  if(e==='warn') return '⚠️ Regular';
+  return '✅ Bueno';
+}
+function fmtDateTime(ts) {
+  if(!ts) return '--';
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' ' +
+         d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtDate(ts) {
+  if(!ts) return '--';
+  return new Date(ts).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const page=btn.dataset.page;
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-'+page).classList.add('active');
+    renderPage(page);
+  });
+});
+
+let currentPage = 'dashboard';
+function renderPage(page) {
+  currentPage = page;
+  if(page==='dashboard') renderDashboard();
+  if(page==='inventario') renderInventario();
+  if(page==='historial') renderHistorial();
+  if(page==='reportes') renderReportes();
+  if(page==='solicitudes') renderSolicitudes();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const good=equipos.filter(e=>getEstado(e)==='good').length;
+  const warn=equipos.filter(e=>getEstado(e)==='warn').length;
+  const bad=equipos.filter(e=>getEstado(e)==='bad').length;
+  document.getElementById('stat-total').textContent=equipos.length;
+  document.getElementById('stat-good').textContent=good;
+  document.getElementById('stat-warn').textContent=warn;
+  document.getElementById('stat-bad').textContent=bad;
+
+  // Alerts
+  const ac=document.getElementById('alert-container');
+  ac.innerHTML='';
+  const badEquips=equipos.filter(e=>getEstado(e)==='bad');
+  if(badEquips.length>0) {
+    ac.innerHTML=`<div class="alert-banner"><span>⚡</span><div>${badEquips.length} equipo(s) con fallas: ${badEquips.map(e=>e.id).join(', ')}</div></div>`;
+  }
+  const pendRep=reportes.filter(r=>r.estado==='pendiente').length;
+  if(pendRep>0) ac.innerHTML+=`<div class="alert-banner" style="border-color:rgba(255,215,0,0.4);background:rgba(255,215,0,0.08)"><span style="color:var(--yellow)">🔔</span><div style="color:var(--yellow)">${pendRep} reporte(s) pendiente(s) sin resolver</div></div>`;
+
+  // Periph summary
+  const periphs=[
+    {label:'Mouse',key:'mouse'},{label:'Teclado',key:'teclado'},{label:'Audífonos',key:'audifonos'},
+    {label:'Monitor',key:'monitor'},{label:'Cooler CPU',key:'coolerCPU'},{label:'Cooler Case',key:'coolerCase'}
+  ];
+  const ps=document.getElementById('periph-summary');
+  ps.innerHTML=periphs.map(p=>{
+    const good=equipos.filter(e=>e[p.key]==='✅ Bueno').length;
+    const tot=equipos.length;
+    const pct=Math.round(good/tot*100);
+    const cls=pct>=90?'green':pct>=70?'yellow':'red';
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px">
+        <span>${p.label}</span>
+        <span style="color:var(--muted)">${good}/${tot} <span class="pill pill-${pct>=90?'green':pct>=70?'yellow':'red'}">${pct}%</span></span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+
+  // Recent hist
+  const rh=document.getElementById('recent-hist');
+  const recent=[...historial].reverse().slice(0,3);
+  if(recent.length===0) rh.innerHTML=`<div class="empty"><div class="empty-icon">📋</div>Sin registros aún</div>`;
+  else rh.innerHTML=recent.map(h=>`
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <div><span style="color:var(--cyan);font-family:var(--font-head);font-size:11px">${h.equipoId}</span> — ${h.tipo}</div>
+      <div style="color:var(--muted);font-size:11px">${fmtDate(h.fecha)}</div>
+    </div>`).join('');
+
+  // Pending soli
+  const ps2=document.getElementById('pending-soli');
+  const pend=solicitudes.filter(s=>s.estado==='pendiente').slice(0,3);
+  if(pend.length===0) ps2.innerHTML=`<div style="color:var(--muted);font-size:13px;text-align:center;padding:10px">Sin solicitudes pendientes ✓</div>`;
+  else ps2.innerHTML=pend.map(s=>`
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <div>${s.tipo}</div>
+      <div><span class="soli-badge pendiente">Pendiente</span></div>
+    </div>`).join('');
+
+  updateBadges();
+}
+
+function updateBadges() {
+  const rBadge=document.getElementById('nav-reportes');
+  const sBadge=document.getElementById('nav-solicitudes');
+  const pendR=reportes.filter(r=>r.estado==='pendiente').length;
+  const pendS=solicitudes.filter(s=>s.estado==='pendiente').length;
+  rBadge.querySelector('.nav-badge')?.remove();
+  sBadge.querySelector('.nav-badge')?.remove();
+  if(pendR>0) rBadge.insertAdjacentHTML('beforeend',`<span class="nav-badge">${pendR}</span>`);
+  if(pendS>0) sBadge.insertAdjacentHTML('beforeend',`<span class="nav-badge">${pendS}</span>`);
+}
+
+// ============================================================
+// INVENTARIO
+// ============================================================
+let currentFilter='todos';
+function renderInventario() {
+  const list=document.getElementById('equip-list');
+  let filtered=equipos;
+  if(currentFilter==='bad') filtered=equipos.filter(e=>getEstado(e)!=='good');
+  else if(currentFilter!=='todos') filtered=equipos.filter(e=>e.tipo===currentFilter);
+
+  if(filtered.length===0) {
+    list.innerHTML=`<div class="empty"><div class="empty-icon">🎮</div>No hay equipos en esta categoría</div>`;
+    return;
+  }
+  list.innerHTML=filtered.map(eq=>`
+    <div class="equip-item" data-id="${eq.id}">
+      <div class="equip-dot ${getEstado(eq)}"></div>
+      <div class="equip-info">
+        <div class="equip-id">${eq.id}</div>
+        <div class="equip-name">${eq.nombre}</div>
+        <div class="equip-type">${eq.tipo} · ${eq.ubicacion}</div>
+      </div>
+      <div class="equip-arrow">›</div>
+    </div>`).join('');
+
+  list.querySelectorAll('.equip-item').forEach(el=>{
+    el.addEventListener('click',()=>openEquipModal(el.dataset.id));
+  });
+}
+
+document.querySelectorAll('.filter-btn[data-filter]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    currentFilter=btn.dataset.filter;
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderInventario();
+  });
+});
+
+// ============================================================
+// EQUIPO MODAL
+// ============================================================
+let currentEquipId=null;
+function openEquipModal(id) {
+  currentEquipId=id;
+  const eq=equipos.find(e=>e.id===id);
+  document.getElementById('modal-equip-title').textContent=`${eq.id} — ${eq.nombre}`;
+
+  const opts=['✅ Bueno','⚠️ Regular','❌ Malo','🔧 En Reparación'];
+  const periphs=[
+    {label:'Mouse',key:'mouse'},{label:'Teclado',key:'teclado'},{label:'Audífonos',key:'audifonos'},
+    {label:'Monitor',key:'monitor'},{label:'Cooler CPU',key:'coolerCPU'},{label:'Cooler Case',key:'coolerCase'}
+  ];
+
+  const body=document.getElementById('modal-equip-body');
+  body.innerHTML=`
+    <div class="mant-row"><span class="mant-key">Tipo</span><span class="mant-val">${eq.tipo}</span></div>
+    <div class="mant-row"><span class="mant-key">Ubicación</span><span class="mant-val">${eq.ubicacion}</span></div>
+    <div class="mant-row"><span class="mant-key">Estado General</span><span class="mant-val">${estadoLabel(eq)}</span></div>
+    <div class="mant-row"><span class="mant-key">Último Mant.</span><span class="mant-val">${eq.ultimoMant?fmtDate(eq.ultimoMant):'Sin registro'}</span></div>
+
+    <div class="section-head">Periféricos</div>
+    <div class="periph-grid">
+      ${periphs.map(p=>`
+        <div class="periph-item">
+          <div class="periph-label">${p.label}</div>
+          <select class="periph-select" data-key="${p.key}">
+            ${opts.map(o=>`<option ${eq[p.key]===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Observaciones</label>
+      <textarea class="form-textarea" id="equip-obs" placeholder="Notas adicionales...">${eq.obs||''}</textarea>
+    </div>
+  `;
+  openModal('modal-equip');
+}
+
+document.getElementById('close-equip').onclick=()=>closeModal('modal-equip');
+
+document.getElementById('btn-save-equip').onclick=()=>{
+  const eq=equipos.find(e=>e.id===currentEquipId);
+  document.querySelectorAll('.periph-select').forEach(sel=>{
+    eq[sel.dataset.key]=sel.value;
+  });
+  eq.obs=document.getElementById('equip-obs').value;
+  save();
+  closeModal('modal-equip');
+  showToast('✅ Cambios guardados');
+  renderPage(currentPage);
+};
+
+document.getElementById('btn-reg-mant').onclick=()=>{
+  const eq=equipos.find(e=>e.id===currentEquipId);
+  document.getElementById('mant-equip').value=`${eq.id} — ${eq.nombre}`;
+  closeModal('modal-equip');
+  openModal('modal-mant');
+};
+
+// ============================================================
+// MANTENIMIENTO
+// ============================================================
+document.getElementById('close-mant').onclick=()=>closeModal('modal-mant');
+
+document.getElementById('btn-save-mant').onclick=()=>{
+  const eq=equipos.find(e=>e.id===currentEquipId);
+  const tipo=document.getElementById('mant-tipo').value;
+  const tecnico=document.getElementById('mant-tecnico').value||'Sin especificar';
+  const duracion=document.getElementById('mant-duracion').value;
+  const insumos=document.getElementById('mant-insumos').value;
+  const obs=document.getElementById('mant-obs').value;
+
+  const reg={
+    id: Date.now(),
+    fecha: Date.now(),
+    equipoId: eq.id,
+    equipoNombre: eq.nombre,
+    equipoTipo: eq.tipo,
+    tipo,tecnico,duracion,insumos,obs,
+    estado:'✅ Completado'
+  };
+  historial.push(reg);
+  eq.ultimoMant=Date.now();
+  save();
+
+  document.getElementById('mant-tecnico').value='';
+  document.getElementById('mant-duracion').value='';
+  document.getElementById('mant-insumos').value='';
+  document.getElementById('mant-obs').value='';
+  closeModal('modal-mant');
+  showToast('📋 Mantenimiento registrado');
+  renderDashboard();
+};
+
+// ============================================================
+// HISTORIAL
+// ============================================================
+let histFilter='todos';
+function renderHistorial(search='') {
+  const list=document.getElementById('hist-list');
+  let data=[...historial].reverse();
+  if(histFilter!=='todos') data=data.filter(h=>h.tipo===histFilter);
+  if(search) data=data.filter(h=>(h.equipoId+h.tecnico+h.equipoNombre).toLowerCase().includes(search.toLowerCase()));
+
+  if(data.length===0){
+    list.innerHTML=`<div class="empty"><div class="empty-icon">🕐</div>No hay registros</div>`;
+    return;
+  }
+  list.innerHTML=data.map(h=>`
+    <div class="hist-item">
+      <div class="hist-header">
+        <div class="hist-id">${h.equipoId} — ${h.equipoNombre}</div>
+        <div class="hist-date">${fmtDateTime(h.fecha)}</div>
+      </div>
+      <span class="hist-type ${h.tipo.toLowerCase().includes('correc')?'correctivo':'preventivo'}">${h.tipo}</span>
+      <div class="hist-tecnico">👤 ${h.tecnico}</div>
+      ${h.duracion?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px">⏱ ${h.duracion} min${h.insumos?' · 🔧 '+h.insumos:''}</div>`:''}
+      ${h.obs?`<div class="hist-obs">${h.obs}</div>`:''}
+    </div>`).join('');
+}
+
+document.getElementById('hist-search').addEventListener('input',e=>renderHistorial(e.target.value));
+
+document.querySelectorAll('.filter-btn[data-hfilter]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    histFilter=btn.dataset.hfilter;
+    document.querySelectorAll('.filter-btn[data-hfilter]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderHistorial(document.getElementById('hist-search').value);
+  });
+});
+
+// ============================================================
+// REPORTES
+// ============================================================
+let repFilter='todos';
+
+function renderReportes() {
+  populateEquipSelect('rep-equip');
+  const list=document.getElementById('report-list');
+  let data=[...reportes].reverse();
+  if(repFilter!=='todos') data=data.filter(r=>r.estado===repFilter);
+
+  if(data.length===0){
+    list.innerHTML=`<div class="empty"><div class="empty-icon">🟢</div>Sin reportes en esta categoría</div>`;
+    return;
+  }
+  list.innerHTML=data.map(r=>`
+    <div class="report-item ${r.estado}">
+      <div class="report-header">
+        <div class="report-equip ${r.estado}">${r.equipoId}</div>
+        <div class="report-datetime">${fmtDateTime(r.fecha)}</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${r.tipoproblema} · <span style="color:${r.prioridad==='alta'?'var(--red)':r.prioridad==='media'?'var(--yellow)':'var(--green)'}">${r.prioridad.toUpperCase()}</span></div>
+      <div class="report-desc">${r.descripcion}</div>
+      ${r.cliente?`<div class="report-cliente">👤 ${r.cliente}</div>`:''}
+      ${r.estado==='pendiente'?`<div style="margin-top:8px"><button class="resolve-btn" data-rid="${r.id}">✓ MARCAR RESUELTO</button></div>`:'<div style="margin-top:6px;font-size:11px;color:var(--green)">✅ Resuelto el '+fmtDate(r.fechaResolucion)+'</div>'}
+    </div>`).join('');
+
+  list.querySelectorAll('.resolve-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const r=reportes.find(x=>x.id==btn.dataset.rid);
+      if(r){r.estado='resuelto';r.fechaResolucion=Date.now();save();renderReportes();renderDashboard();showToast('✅ Reporte resuelto');}
+    });
+  });
+}
+
+document.querySelectorAll('.filter-btn[data-rfilter]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    repFilter=btn.dataset.rfilter;
+    document.querySelectorAll('.filter-btn[data-rfilter]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderReportes();
+  });
+});
+
+document.getElementById('btn-new-report').onclick=()=>openModal('modal-report');
+document.getElementById('close-report').onclick=()=>closeModal('modal-report');
+
+document.getElementById('btn-save-report').onclick=()=>{
+  const equipoId=document.getElementById('rep-equip').value;
+  const desc=document.getElementById('rep-desc').value.trim();
+  if(!desc){showToast('⚠️ Escribe una descripción');return;}
+  reportes.push({
+    id:Date.now(),fecha:Date.now(),
+    equipoId,
+    cliente:document.getElementById('rep-cliente').value,
+    tipoproblema:document.getElementById('rep-tipo').value,
+    descripcion:desc,
+    prioridad:document.getElementById('rep-prioridad').value,
+    estado:'pendiente'
+  });
+  save();
+  document.getElementById('rep-desc').value='';
+  document.getElementById('rep-cliente').value='';
+  closeModal('modal-report');
+  showToast('🔔 Reporte registrado');
+  renderReportes();
+  renderDashboard();
+};
+
+// ============================================================
+// SOLICITUDES
+// ============================================================
+let soliFilter='todos';
+
+function renderSolicitudes() {
+  populateEquipSelect('soli-equip', true);
+  const list=document.getElementById('soli-list');
+  let data=[...solicitudes].reverse();
+  if(soliFilter!=='todos') data=data.filter(s=>s.estado===soliFilter);
+
+  if(data.length===0){
+    list.innerHTML=`<div class="empty"><div class="empty-icon">📝</div>Sin solicitudes en esta categoría</div>`;
+    return;
+  }
+  list.innerHTML=data.map(s=>`
+    <div class="soli-item">
+      <div class="soli-header">
+        <span class="soli-badge ${s.estado}">${s.estado.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--muted)">${fmtDateTime(s.fecha)}</span>
+      </div>
+      <div class="soli-tipo">${s.tipo}${s.equipoId?' · '+s.equipoId:''}</div>
+      <div class="soli-desc">${s.descripcion}</div>
+      <div class="soli-meta" style="margin-top:6px;display:flex;gap:12px;align-items:center">
+        <span>👤 ${s.quien||'Sin especificar'}</span>
+        <span style="color:${s.prioridad==='alta'?'var(--red)':s.prioridad==='media'?'var(--yellow)':'var(--green)'}">${s.prioridad==='alta'?'🔴':s.prioridad==='media'?'🟡':'🟢'} ${s.prioridad}</span>
+        ${s.estado!=='completada'?`<button onclick="advanceSoli(${s.id})" style="margin-left:auto;background:rgba(139,92,246,0.15);border:1px solid var(--purple);color:var(--purple);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:1px">
+          ${s.estado==='pendiente'?'▶ INICIAR':'✓ COMPLETAR'}
+        </button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function advanceSoli(id) {
+  const s=solicitudes.find(x=>x.id===id);
+  if(!s) return;
+  if(s.estado==='pendiente') s.estado='proceso';
+  else if(s.estado==='proceso') s.estado='completada';
+  save();
+  renderSolicitudes();
+  renderDashboard();
+  showToast('✅ Estado actualizado');
+}
+window.advanceSoli=advanceSoli;
+
+document.querySelectorAll('.filter-btn[data-sfilter]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    soliFilter=btn.dataset.sfilter;
+    document.querySelectorAll('.filter-btn[data-sfilter]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderSolicitudes();
+  });
+});
+
+document.getElementById('btn-new-soli').onclick=()=>{populateEquipSelect('soli-equip',true);openModal('modal-soli');};
+document.getElementById('close-soli').onclick=()=>closeModal('modal-soli');
+
+document.getElementById('btn-save-soli').onclick=()=>{
+  const desc=document.getElementById('soli-desc').value.trim();
+  if(!desc){showToast('⚠️ Escribe una descripción');return;}
+  solicitudes.push({
+    id:Date.now(),fecha:Date.now(),
+    tipo:document.getElementById('soli-tipo').value,
+    equipoId:document.getElementById('soli-equip').value,
+    descripcion:desc,
+    prioridad:document.getElementById('soli-prioridad').value,
+    quien:document.getElementById('soli-quien').value,
+    estado:'pendiente'
+  });
+  save();
+  document.getElementById('soli-desc').value='';
+  document.getElementById('soli-quien').value='';
+  closeModal('modal-soli');
+  showToast('📝 Solicitud creada');
+  renderSolicitudes();
+  renderDashboard();
+};
+
+// ============================================================
+// UTILS
+// ============================================================
+function populateEquipSelect(selectId, withEmpty=false) {
+  const sel=document.getElementById(selectId);
+  const cur=sel.value;
+  sel.innerHTML=(withEmpty?'<option value="">-- General --</option>':'')+
+    equipos.map(e=>`<option value="${e.id}" ${cur===e.id?'selected':''}>${e.id} — ${e.nombre}</option>`).join('');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click',e=>{
+    if(e.target===ov) ov.classList.remove('open');
+  });
+});
+
+// ============================================================
+// INIT
+// ============================================================
+renderDashboard();
+</script>
+</body>
+</html>
